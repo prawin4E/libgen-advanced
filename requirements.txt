@@ -1,0 +1,11 @@
+pandas
+requests
+beautifulsoup4
+fastapi
+uvicorn
+pydantic
+boto3
+
+langchain_aws
+langchain_core
+pydantic_settings
