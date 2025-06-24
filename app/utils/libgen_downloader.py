@@ -1,8 +1,8 @@
-
 from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup
 from typing import Optional, Tuple
+import time
 from app.utils.logs import logger
 
 class LibgenDownloader:
@@ -13,6 +13,22 @@ class LibgenDownloader:
     def __init__(self, base_url: str = "https://libgen.li"):
         self.base_url = base_url
         self.session = requests.Session()
+
+    def check_link(self, url: str, timeout: int = 30) -> bool:
+        """
+        Check if a link is accessible using HEAD request
+        Returns True if link is working, False otherwise
+        """
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            response = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
+            return 200 <= response.status_code < 300
+            
+        except:
+            return False
 
     def get_direct_download_url(self, md5: str) -> Tuple[Optional[str], Optional[str]]:
         """
@@ -37,8 +53,6 @@ class LibgenDownloader:
 
             direct_download_url = None
             cover_image_url = None
-
-            # Try to find the cover image
             img_td = soup.find("td", {"rowspan": "2"})
             if img_td:
                 img = img_td.find("img")
@@ -48,16 +62,25 @@ class LibgenDownloader:
                         img_src = urljoin(self.base_url, img_src)
                     cover_image_url = img_src
 
-            # Try to find the direct download link
             for link in all_links:
                 href = link["href"]
                 if "get.php" in href and "key=" in href:
                     href = href.lstrip("/")
-                    direct_download_url = urljoin("https://cdn2.booksdl.lc/", href)
-                    break
+                    
+                    cdn2_url = urljoin("https://cdn2.booksdl.lc/", href)
+                    libgen_url = urljoin("https://libgen.li/", href)
+                    
+                    if self.check_link(cdn2_url):
+                        direct_download_url = cdn2_url
+                        logger.info(f"Using cdn2.booksdl.lc for MD5: {md5}")
+                        break
+                    elif self.check_link(libgen_url):
+                        direct_download_url = libgen_url
+                        logger.info(f"Using libgen.li for MD5: {md5}")
+                        break
 
             if not direct_download_url:
-                logger.error(f"Direct download link with key not found for MD5: {md5}")
+                logger.error(f"No working direct download link found for MD5: {md5}")
 
             return direct_download_url, cover_image_url
 
